@@ -1,6 +1,6 @@
 use herdr_plugin::{
-    App, Context, OneShotRuntime, TabClosed, TabCreated, TabFocused, TabRenamed, WorkspaceClosed,
-    WorkspaceCreated, WorkspaceFocused, WorkspaceRenamed,
+    App, Context, OneShotRuntime, TabClosed, TabCreated, TabFocused, TabMoved, TabRenamed,
+    WorkspaceClosed, WorkspaceCreated, WorkspaceFocused, WorkspaceRenamed,
 };
 use herdr_tab_title::config::Config;
 use herdr_tab_title::formatter::Formatter;
@@ -35,6 +35,7 @@ async fn run() -> Result<(), String> {
                 eprintln!("herdr-tab-title: {error}");
             }
         })
+        .on_event::<TabMoved>(refresh_all)
         .on_event::<TabRenamed>(refresh_all)
         .on_event::<TabClosed>(refresh_all)
         .on_event::<TabFocused>(refresh_all)

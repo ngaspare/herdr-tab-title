@@ -19,6 +19,10 @@ on = "tab.created"
 command = ["target/release/herdr-tab-title"]
 
 [[events]]
+on = "tab.moved"
+command = ["target/release/herdr-tab-title"]
+
+[[events]]
 on = "tab.renamed"
 command = ["target/release/herdr-tab-title"]
 

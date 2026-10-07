@@ -21,39 +21,39 @@ fn plan_renames_with_title_overrides(
     title_overrides: &HashMap<String, String>,
 ) -> Vec<RenameOperation> {
     let mut operations = Vec::new();
-    let mut tabs = tabs.iter().collect::<Vec<_>>();
-    tabs.sort_by(|left, right| {
-        left.workspace_id
-            .cmp(&right.workspace_id)
-            .then(left.number.cmp(&right.number))
-    });
-
-    let mut current_workspace = None::<&str>;
-    let mut workspace_index = 0usize;
+    let mut workspace_order = Vec::<&str>::new();
+    let mut tabs_by_workspace = HashMap::<&str, Vec<&Tab>>::new();
 
     for tab in tabs {
-        if current_workspace != Some(tab.workspace_id.as_str()) {
-            current_workspace = Some(tab.workspace_id.as_str());
-            workspace_index = 1;
-        } else {
-            workspace_index += 1;
+        let entry = tabs_by_workspace.entry(tab.workspace_id.as_str()).or_default();
+        if entry.is_empty() {
+            workspace_order.push(tab.workspace_id.as_str());
         }
+        entry.push(tab);
+    }
+
+    for workspace_id in workspace_order {
+        let workspace_tabs = &tabs_by_workspace[workspace_id];
+
+        for (offset, tab) in workspace_tabs.iter().enumerate() {
+            let workspace_index = offset + 1;
 
         let clean_title = title_overrides
-            .get(&tab.tab_id)
-            .map(String::as_str)
-            .unwrap_or_else(|| formatter.clean_title(&tab.label));
-        let expected = formatter.render(&RenderContext {
-            index: workspace_index,
-            title: clean_title,
-        });
-
-        if !label_matches_expected(&tab.label, &expected, clean_title) {
-            operations.push(RenameOperation {
-                tab_id: tab.tab_id.clone(),
-                from: tab.label.clone(),
-                to: expected,
+                .get(&tab.tab_id)
+                .map(String::as_str)
+                .unwrap_or_else(|| formatter.clean_title(&tab.label));
+            let expected = formatter.render(&RenderContext {
+                index: workspace_index,
+                title: clean_title,
             });
+
+            if !label_matches_expected(&tab.label, &expected, clean_title) {
+                operations.push(RenameOperation {
+                    tab_id: tab.tab_id.clone(),
+                    from: tab.label.clone(),
+                    to: expected,
+                });
+            }
         }
     }
 
@@ -381,10 +381,10 @@ mod tests {
     #[test]
     fn plans_indexes_per_workspace_order() {
         let tabs = vec![
-            tab("w2t2", "two", "w2", 2),
+            tab("w1t1", "one", "w1", 1),
             tab("w1t2", "two", "w1", 2),
             tab("w2t1", "one", "w2", 1),
-            tab("w1t1", "one", "w1", 1),
+            tab("w2t2", "two", "w2", 2),
         ];
         let formatter = Formatter::parse("{index}. {title}").unwrap();
 
@@ -412,6 +412,72 @@ mod tests {
                     tab_id: "w2t2".to_string(),
                     from: "two".to_string(),
                     to: "2. two".to_string(),
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn plans_indexes_from_tab_order_not_tab_number() {
+        let tabs = vec![
+            tab("t1", "one", "w1", 9),
+            tab("t2", "two", "w1", 2),
+            tab("t3", "three", "w1", 5),
+        ];
+        let formatter = Formatter::parse("{index}. {title}").unwrap();
+
+        let operations = plan_renames(&tabs, &formatter);
+
+        assert_eq!(
+            operations,
+            vec![
+                RenameOperation {
+                    tab_id: "t1".to_string(),
+                    from: "one".to_string(),
+                    to: "1. one".to_string(),
+                },
+                RenameOperation {
+                    tab_id: "t2".to_string(),
+                    from: "two".to_string(),
+                    to: "2. two".to_string(),
+                },
+                RenameOperation {
+                    tab_id: "t3".to_string(),
+                    from: "three".to_string(),
+                    to: "3. three".to_string(),
+                },
+            ]
+        );
+    }
+
+    #[test]
+    fn renumbers_every_workspace_after_a_reorder() {
+        let tabs = vec![
+            tab("tA", "5. foo", "w1", 10),
+            tab("t3", "1. bar", "w1", 3),
+            tab("t4", "2. lazygit", "w1", 4),
+        ];
+        let formatter = Formatter::parse("{index}. {title}").unwrap();
+
+        let operations = plan_renames(&tabs, &formatter);
+
+        assert_eq!(
+            operations,
+            vec![
+                RenameOperation {
+                    tab_id: "tA".to_string(),
+                    from: "5. foo".to_string(),
+                    to: "1. foo".to_string(),
+                },
+                RenameOperation {
+                    tab_id: "t3".to_string(),
+                    from: "1. bar".to_string(),
+                    to: "2. bar".to_string(),
+                },
+                RenameOperation {
+                    tab_id: "t4".to_string(),
+                    from: "2. lazygit".to_string(),
+                    to: "3. lazygit".to_string(),
                 },
             ]
         );
